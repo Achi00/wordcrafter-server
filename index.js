@@ -1,18 +1,19 @@
 import dotenv from "dotenv";
+import cors from "cors";
 dotenv.config();
 
 import express from "express";
-import chatRoute from "./routes/chat.js";
+import StartWithAIRoute from "./routes/StartWithAI.js";
 
 const app = express();
-console.log(process.env.OPENAI_API_KEY);
+app.use(cors());
 
 const port = process.env.PORT || 8080;
 
 app.use(express.json());
 
 // Use the chat route
-app.use("/chat", chatRoute);
+app.use("/startwithai", StartWithAIRoute);
 
 app.listen(port, () => {
   console.log(`Server running on port ${port}`);

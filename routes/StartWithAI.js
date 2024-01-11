@@ -13,7 +13,7 @@ const openai = new OpenAI({
 });
 
 // Function to handle the OpenAI API request
-async function fetchGPTResponse(prompt, preset) {
+async function* fetchGPTResponse(prompt, preset) {
   const { config, description } = presets[preset] || presets.default;
   try {
     const systemMessage = `You are a helpful assistant, focused on ${description}`;
@@ -29,13 +29,9 @@ async function fetchGPTResponse(prompt, preset) {
       stream: true,
     });
 
-    let fullResponse = "";
     for await (const chunk of completion) {
-      fullResponse += chunk.choices[0].delta.content;
-      console.log(fullResponse);
+      yield chunk.choices[0].delta.content; // Yield each chunk
     }
-
-    return fullResponse;
   } catch (error) {
     console.error(error);
     throw error;
@@ -43,10 +39,10 @@ async function fetchGPTResponse(prompt, preset) {
 }
 
 // Function to generate a list of 5 topics based on the user's prompt
-async function fetchTopicList(prompt, preset = "default") {
+async function* fetchTopicList(prompt, preset = "default") {
   const { config, description } = presets[preset] || presets.default;
-  const systemMessage = `You are a helpful assistant, focused on ${description}`;
-  const userMessage = `${prompt} List five key topics or questions to consider when writing about this`;
+  const systemMessage = `You are a helpful assistant, focused to ${description}`;
+  const userMessage = `${prompt}, list five key topics or questions related to this subject, presented in a neutral and informative manner, each in a few words, starting with a number.`;
 
   try {
     const completion = await openai.chat.completions.create({
@@ -59,38 +55,43 @@ async function fetchTopicList(prompt, preset = "default") {
       stream: true,
     });
 
-    let fullResponse = "";
     for await (const chunk of completion) {
-      fullResponse += chunk.choices[0].delta.content;
-      console.log(fullResponse);
+      yield chunk.choices[0].delta.content; // Yield each chunk
     }
-
-    // Process the complete response here
-    const topicsList = fullResponse
-      .split("\n")
-      .filter((topic) => topic.trim() !== "" && !topic.startsWith("undefined"))
-      .slice(0, 5); // Limit to 5 topics
-
-    return topicsList;
   } catch (error) {
     console.error(error);
     throw error;
   }
 }
 
+// Router endpoint for streaming response
 router.post("/", async (req, res) => {
   try {
     const { prompt, preset } = req.body;
-    const contentResponse = await fetchGPTResponse(prompt, preset);
-    const topics = await fetchTopicList(prompt, preset);
 
-    if (contentResponse && topics) {
-      res.json({ content: contentResponse, topics });
-    } else {
-      throw new Error("Incomplete response");
+    res.writeHead(200, {
+      "Content-Type": "application/json",
+      "Transfer-Encoding": "chunked",
+    });
+
+    // for await (const chunk of fetchGPTResponse(prompt, preset)) {
+    //   if (chunk) {
+    //     res.write(JSON.stringify({ type: "intro", content: chunk }) + "\n");
+    //   }
+    // }
+
+    for await (const chunk of fetchTopicList(prompt, preset)) {
+      if (chunk) {
+        res.write(JSON.stringify({ type: "topics", content: chunk }) + "\n");
+      }
     }
+
+    res.end();
   } catch (error) {
-    res.status(500).json({ error: error.message });
+    console.error(error);
+    if (!res.headersSent) {
+      res.status(500).json({ error: error.message });
+    }
   }
 });
 
