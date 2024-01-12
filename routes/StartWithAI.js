@@ -15,9 +15,11 @@ const openai = new OpenAI({
 // Function to handle the OpenAI API request
 async function* fetchGPTResponse(prompt, preset) {
   const { config, description } = presets[preset] || presets.default;
+  console.log(prompt);
+
   try {
-    const systemMessage = `You are a helpful assistant, focused on ${description}`;
-    const userMessage = `${prompt}. Provide an introductory paragraph or a few opening sentences based on the above focus.`;
+    const systemMessage = `You are a helpful assistant, focused on ${description}, When asked to write about a topic, use common knowledge and publicly available information to write an informative and engaging introduction. Do not request additional information or suggest creating a generic response.`;
+    const userMessage = `${prompt}. Provide an introductory paragraph or opening sentences based on provided info.`;
 
     const completion = await openai.chat.completions.create({
       model: "gpt-4-1106-preview",
@@ -74,11 +76,11 @@ router.post("/", async (req, res) => {
       "Transfer-Encoding": "chunked",
     });
 
-    // for await (const chunk of fetchGPTResponse(prompt, preset)) {
-    //   if (chunk) {
-    //     res.write(JSON.stringify({ type: "intro", content: chunk }) + "\n");
-    //   }
-    // }
+    for await (const chunk of fetchGPTResponse(prompt, preset)) {
+      if (chunk) {
+        res.write(JSON.stringify({ type: "intro", content: chunk }) + "\n");
+      }
+    }
 
     for await (const chunk of fetchTopicList(prompt, preset)) {
       if (chunk) {
