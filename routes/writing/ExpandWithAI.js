@@ -4,7 +4,7 @@ dotenv.config();
 import express from "express";
 import axios from "axios";
 import OpenAI from "openai";
-import { presets } from "../utils/index.js";
+import { presets } from "../../utils/index.js";
 
 const router = express.Router();
 
@@ -13,10 +13,10 @@ const openai = new OpenAI({
 });
 
 // Function to handle the OpenAI API request
-async function* summarizeResponse(content, preset) {
+async function* expandResponse(content, preset) {
   const { config, description } = presets[preset] || presets.default;
   const systemMessage = `You are a helpful assistant, focused to ${description}`;
-  const userMessage = `Summarize following content, generate detailed explanation and separate topics if possible: ${content}`;
+  const userMessage = `Expand on the following content with additional information and analysis, add argumentation: ${content}`;
 
   try {
     const completion = await openai.chat.completions.create({
@@ -48,9 +48,9 @@ router.post("/", async (req, res) => {
       "Transfer-Encoding": "chunked",
     });
 
-    for await (const chunk of summarizeResponse(content, preset)) {
+    for await (const chunk of expandResponse(content, preset)) {
       if (chunk) {
-        res.write(JSON.stringify({ type: "summary", content: chunk }) + "\n");
+        res.write(JSON.stringify({ type: "expand", content: chunk }) + "\n");
       }
     }
 

@@ -4,7 +4,7 @@ dotenv.config();
 import express from "express";
 import axios from "axios";
 import OpenAI from "openai";
-import { presets } from "../utils/index.js";
+import { presets } from "../../utils/index.js";
 
 const router = express.Router();
 
