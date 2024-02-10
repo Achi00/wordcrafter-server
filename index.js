@@ -7,7 +7,7 @@ import StartWithAIRoute from "./routes/writing/StartWithAI.js";
 import ExpandWithAIRoute from "./routes/writing/ExpandWithAI.js";
 import SummarizeWithAIRoute from "./routes/writing/SummarizeWithAI.js";
 import SearchWithAIRoute from "./routes/research/SearchWithAI.js";
-import authRoutes from "./routes/auth/GoogleAuth.js";
+import authRoutes from "./routes/auth/AuthWithGoogle.js";
 // import cookieSession from "cookie-session";
 import session from "express-session";
 import passport from "passport";

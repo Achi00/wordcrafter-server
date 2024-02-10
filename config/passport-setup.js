@@ -9,7 +9,7 @@ passport.use(
     {
       clientID: process.env.GOOGLE_CLIENT_ID,
       clientSecret: process.env.GOOGLE_CLIENT_SECRET,
-      callbackURL: "/auth/google/callback",
+      callbackURL: "http://localhost:8080/auth/google/callback",
     },
     async (accessToken, refreshToken, profile, done) => {
       try {
@@ -26,8 +26,14 @@ passport.use(
           throw new Error("No email associated with this account!");
         }
 
+        // Attempt to find the user in the database
         let user = await User.findOne({ googleId: profile.id });
-        if (!user) {
+        if (user) {
+          // If user exists, log them in
+          console.log("Current user: ", user);
+          return done(null, user);
+        } else {
+          // If user doesn't exist, create a new one
           user = new User({
             googleId: profile.id,
             name: profile.displayName,
@@ -35,17 +41,16 @@ passport.use(
             picture: photo, // Save the profile picture URL
           });
           await user.save();
-          console.log("New user created: " + user);
+          console.log("New user created: ", user);
+          return done(null, user);
         }
-        done(null, user);
       } catch (err) {
         done(err);
       }
+      // return done(new Error("Forced error"));
     }
   )
 );
-
-// console.log(passport._strategies);
 
 passport.serializeUser((user, done) => {
   done(null, user.id);
