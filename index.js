@@ -8,13 +8,20 @@ import ExpandWithAIRoute from "./routes/writing/ExpandWithAI.js";
 import SummarizeWithAIRoute from "./routes/writing/SummarizeWithAI.js";
 import SearchWithAIRoute from "./routes/research/SearchWithAI.js";
 import authRoutes from "./routes/auth/AuthWithGoogle.js";
+import logoutRoutes from "./routes/auth/Logout.js";
+import usersRoutes from "./routes/users/GetUsers.js";
 // import cookieSession from "cookie-session";
 import session from "express-session";
 import passport from "passport";
 import connectDB from "./db/Database.js";
 
 const app = express();
-app.use(cors());
+app.use(
+  cors({
+    origin: "http://localhost:3000", // Allow requests from your Next.js frontend
+    credentials: true, // Allow cookies to be sent with requests
+  })
+);
 
 const port = process.env.PORT || 8080;
 
@@ -41,6 +48,22 @@ app.use(passport.session());
 
 // auth
 app.use("/auth", authRoutes);
+
+// logout
+app.use("/auth/logout", logoutRoutes);
+
+// get users info
+app.use("v1/users", usersRoutes);
+
+// check user auth status
+app.get("/auth/status", (req, res) => {
+  if (req.isAuthenticated()) {
+    // isAuthenticated() is a Passport.js function that checks if the user is logged in
+    res.json({ isLoggedIn: true });
+  } else {
+    res.json({ isLoggedIn: false });
+  }
+});
 
 // Use the chat route
 app.use("/v1/startwithai", StartWithAIRoute);

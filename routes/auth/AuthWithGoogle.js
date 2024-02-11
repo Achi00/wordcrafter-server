@@ -23,7 +23,13 @@ router.get("/google/callback", (req, res, next) => {
     }
     req.logIn(user, (err) => {
       if (err) {
-        return next(err);
+        // Example of refining the error message
+        const userFriendlyError = err.message; // Transform this based on expected errors
+        return res.redirect(
+          `http://localhost:3000/auth?error=${encodeURIComponent(
+            userFriendlyError
+          )}`
+        );
       }
       // Successful authentication, redirect to the home page.
       return res.redirect("http://localhost:3000/");
