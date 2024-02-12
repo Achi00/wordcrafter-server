@@ -5,9 +5,20 @@ const router = express.Router();
 
 // Assuming you're using express-session
 router.get("/", (req, res) => {
-  req.logout(); // Passport.js's way to log out the user
-  req.session.destroy(); // Destroys session data
-  res.redirect("http://localhost:3000/auth"); // Redirects user to homepage or login page after logging out
+  req.logout(function (err) {
+    if (err) {
+      return next(err);
+    }
+    req.session.destroy(function (err) {
+      if (err) {
+        console.error("Session destroy failed:", err);
+        return res
+          .status(500)
+          .json({ success: false, message: "Failed to log out" });
+      }
+      res.json({ success: true, message: "Logout successful" });
+    });
+  });
 });
 
 export default router;

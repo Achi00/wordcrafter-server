@@ -2,7 +2,7 @@ import dotenv from "dotenv";
 dotenv.config();
 import passport from "passport";
 import GoogleStrategy from "passport-google-oauth20";
-import User from "../models/User.js"; // Make sure you include the file extension if using native ES6 modules
+import User from "../models/UserSchema.js"; // Make sure you include the file extension if using native ES6 modules
 
 passport.use(
   new GoogleStrategy(

@@ -1,24 +1,39 @@
 import express from "express";
+import Chat from "../../../models/ChatSchema.js";
+import User from "../../../models/UserSchema.js";
 
 const router = express.Router();
 
-// Authenticate with Google
-router.post("/chat", async (req, res) => {
-  try {
-    // Create a new chat with participants
-    const newChat = await new Chat({
-      participants: [req.user._id /* other participant's user ID */],
-      messages: [], // Starting with an empty array of messages
-    }).save();
+// Endpoint to create a new chat
+router.post("/", async (req, res) => {
+  const { userId } = req.body; // Assuming the frontend sends the ID of the user who initiates the chat
 
-    // Add the chat to the user's chats
-    await User.findByIdAndUpdate(req.user._id, {
-      $push: { chats: newChat._id },
+  try {
+    // Verify if the user exists
+    const userExists = await User.findById(userId);
+    if (!userExists) {
+      return res.status(404).send("User not found");
+    }
+
+    // Create a new chat instance
+    const newChat = new Chat({
+      userId: userId,
+      messages: [], // Start with an empty messages array
     });
 
-    res.status(201).json(newChat);
+    // Save the chat
+    const savedChat = await newChat.save();
+
+    // Optionally, update the user's chats array
+    userExists.chats.push(savedChat._id);
+    await userExists.save();
+
+    res.status(201).json(savedChat);
   } catch (error) {
-    res.status(500).json({ message: "Error creating chat", error: error });
+    console.error(error);
+    res
+      .status(500)
+      .json({ message: "Failed to start chat", error: error.message });
   }
 });
 
