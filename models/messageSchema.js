@@ -15,3 +15,6 @@ const messageSchema = new mongoose.Schema({
     default: Date.now,
   },
 });
+
+// Export the schema for use as a subdocument
+export { messageSchema };

@@ -1,4 +1,5 @@
 import mongoose from "mongoose";
+import { messageSchema } from "./messageSchema.js"; // Adjust the path as necessary
 
 const chatSchema = new mongoose.Schema({
   userId: {
@@ -6,7 +7,7 @@ const chatSchema = new mongoose.Schema({
     ref: "User",
     required: true,
   },
-  messages: [messageSchema],
+  messages: [messageSchema], // This now correctly uses the schema
   createdAt: {
     type: Date,
     default: Date.now,
@@ -17,4 +18,4 @@ const chatSchema = new mongoose.Schema({
   },
 });
 
-export default mongoose.model("Chat", chatSchema);
+export default mongoose.model("chat", chatSchema);
