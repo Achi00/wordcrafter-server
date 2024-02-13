@@ -11,9 +11,38 @@ const openai = new OpenAI({
 });
 
 // Function to handle the OpenAI API request
-// async function* streamAIResponse(content, chatId) {
-//   const systemMessage = `You are a helpful assistant`;
-//   const userMessage = `${content}`;
+async function* streamAIResponse(content, chatId) {
+  const systemMessage = `You are a helpful assistant`;
+  const userMessage = `${content}`;
+
+  try {
+    const completion = await openai.chat.completions.create({
+      model: "gpt-3.5-turbo-0125",
+      messages: [
+        { role: "system", content: systemMessage },
+        { role: "user", content: userMessage },
+      ],
+      temperature: 0.1,
+      max_tokens: 1000,
+      top_p: 0.1,
+      frequency_penalty: 0,
+      presence_penalty: 0,
+      stream: true,
+    });
+
+    for await (const chunk of completion) {
+      yield chunk.choices[0].delta.content; // Yield each expanded chunk
+    }
+  } catch (error) {
+    console.error(error);
+    throw error;
+  }
+}
+
+// async function streamAIResponse(content) {
+//   const systemMessage = `You are a helpful assistant.`;
+//   const userMessage = content;
+//   let fullResponse = "";
 
 //   try {
 //     const completion = await openai.chat.completions.create({
@@ -31,47 +60,18 @@ const openai = new OpenAI({
 //     });
 
 //     for await (const chunk of completion) {
-//       yield chunk.choices[0].delta.content; // Yield each expanded chunk
+//       // Check if 'content' exists in the chunk before concatenating
+//       if (chunk.choices[0].delta && "content" in chunk.choices[0].delta) {
+//         fullResponse += chunk.choices[0].delta.content;
+//       }
 //     }
 //   } catch (error) {
-//     console.error(error);
+//     console.error("Error streaming AI response:", error);
 //     throw error;
 //   }
+
+//   return fullResponse; // Return the full, concatenated response
 // }
-
-async function streamAIResponse(content) {
-  const systemMessage = `You are a helpful assistant.`;
-  const userMessage = content;
-  let fullResponse = "";
-
-  try {
-    const completion = await openai.chat.completions.create({
-      model: "gpt-3.5-turbo-0125",
-      messages: [
-        { role: "system", content: systemMessage },
-        { role: "user", content: userMessage },
-      ],
-      temperature: 0.1,
-      max_tokens: 100,
-      top_p: 0.1,
-      frequency_penalty: 0,
-      presence_penalty: 0,
-      stream: true,
-    });
-
-    for await (const chunk of completion) {
-      // Check if 'content' exists in the chunk before concatenating
-      if (chunk.choices[0].delta && "content" in chunk.choices[0].delta) {
-        fullResponse += chunk.choices[0].delta.content;
-      }
-    }
-  } catch (error) {
-    console.error("Error streaming AI response:", error);
-    throw error;
-  }
-
-  return fullResponse; // Return the full, concatenated response
-}
 
 // Endpoint to add a message to a specific chat
 // router.post("/:chatId", async (req, res) => {
@@ -109,27 +109,16 @@ async function streamAIResponse(content) {
 //     }
 //   }
 // });
-async function simulateAIResponse(userInput) {
-  // Simulate a delay and return a simple string response
-  return `Simulated response for "${userInput}"`;
-}
 
 router.post("/:chatId", async (req, res) => {
   const { chatId } = req.params;
   const { content: userInput } = req.body;
 
-  console.log("Received userInput:", userInput); // Log the user input for debugging
-
   try {
     const chat = await Chat.findById(chatId);
-    console.log("Chat found:", !!chat); // Confirm chat is found
-
     if (!chat) {
       return res.status(404).send("Chat not found");
     }
-
-    // Log the state of messages before adding the user message
-    console.log("Messages before adding user message:", chat.messages);
 
     // Add user message
     chat.messages.push({
@@ -137,26 +126,33 @@ router.post("/:chatId", async (req, res) => {
       content: userInput,
     });
 
-    console.log("Messages after adding user message:", chat.messages);
+    // Initialize a variable to collect the full AI response
+    let fullAIResponse = "";
 
-    // Get AI response and add it
-    const aiResponse = await simulateAIResponse(userInput);
-    console.log("AI response:", aiResponse); // Log the AI response for debugging
-
-    if (aiResponse) {
-      chat.messages.push({
-        sender: "assistant",
-        content: aiResponse,
+    // Collect chunks
+    try {
+      for await (const chunk of streamAIResponse(userInput)) {
+        console.log("Received chunk:", chunk); // Log the chunk for monitoring
+        fullAIResponse += chunk; // Concatenate the chunk to the full response
+      }
+    } catch (error) {
+      console.error("Error streaming AI response:", error);
+      return res.status(500).json({
+        message: "Error processing AI response",
+        error: error.toString(),
       });
     }
 
-    // Log the state of messages before saving
-    console.log("Messages before saving:", chat.messages);
+    // Once all chunks are collected, save the full response
+    if (fullAIResponse) {
+      chat.messages.push({
+        sender: "assistant",
+        content: fullAIResponse,
+      });
+    }
 
-    // Save the updated chat document
+    // Save the chat document after processing all chunks
     await chat.save();
-
-    console.log("Chat saved successfully"); // Confirm chat was saved
 
     res.json({
       message: "Chat updated successfully with user and AI messages.",
