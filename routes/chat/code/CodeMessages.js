@@ -10,6 +10,56 @@ const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY, // This is also the default, can be omitted
 });
 
+async function fetchLastThreeMessages(chatId) {
+  const chat = await Chat.findById(chatId);
+  // Assuming 'messages' is an array of message objects
+  return chat.messages.slice(-3).map((msg) => {
+    return { role: msg.sender, content: msg.content };
+  });
+}
+// generate summary of conversation
+async function generateSummary(chatId) {
+  // Fetch the last 3 messages from the chat
+  const lastMessages = await fetchLastThreeMessages(chatId);
+  const conversationForSummary = lastMessages.map((msg) => {
+    return {
+      role: msg.sender === "user" ? "user" : "assistant",
+      content: msg.content,
+    };
+  });
+
+  // Concatenate the last few messages to form the input for the summarization
+  const summaryInput = conversationForSummary
+    .map((msg) => `${msg.role}: ${msg.content}`)
+    .join("\n");
+
+  const systemMessage = `You are a summarization assistant designed to extract key points, context, and the most important logic from the conversation provided. Your goal is to generate a summary that captures the essence of the discussion, highlighting any significant details, context, and conclusions. This summary will be used to inform another AI system about the ongoing conversation, enabling it to understand the discussion's current state and main topics.`;
+  const userMessage = `I want you to summarize this conversation for me, get context of it, what is topic about and keypoints, conversation: ${content}`;
+
+  try {
+    const completion = await openai.chat.completions.create({
+      model: "gpt-3.5-turbo-0125",
+      messages: [
+        { role: "system", content: systemMessage },
+        { role: "user", content: userMessage },
+      ],
+      temperature: 0.2,
+      max_tokens: 1000,
+      top_p: 0.1,
+      frequency_penalty: 0,
+      presence_penalty: 0,
+      stream: true,
+    });
+
+    // Extract the summary text from the response
+    const summary = response.data.choices[0].text.trim();
+    return summary;
+  } catch (error) {
+    console.error("Error generating summary:", error);
+    throw error;
+  }
+}
+
 // Function to handle the OpenAI API request
 async function* streamAIResponse(content, chatId) {
   const systemMessage = `You are a helpful assistant`;
@@ -38,77 +88,6 @@ async function* streamAIResponse(content, chatId) {
     throw error;
   }
 }
-
-// async function streamAIResponse(content) {
-//   const systemMessage = `You are a helpful assistant.`;
-//   const userMessage = content;
-//   let fullResponse = "";
-
-//   try {
-//     const completion = await openai.chat.completions.create({
-//       model: "gpt-3.5-turbo-0125",
-//       messages: [
-//         { role: "system", content: systemMessage },
-//         { role: "user", content: userMessage },
-//       ],
-//       temperature: 0.1,
-//       max_tokens: 100,
-//       top_p: 0.1,
-//       frequency_penalty: 0,
-//       presence_penalty: 0,
-//       stream: true,
-//     });
-
-//     for await (const chunk of completion) {
-//       // Check if 'content' exists in the chunk before concatenating
-//       if (chunk.choices[0].delta && "content" in chunk.choices[0].delta) {
-//         fullResponse += chunk.choices[0].delta.content;
-//       }
-//     }
-//   } catch (error) {
-//     console.error("Error streaming AI response:", error);
-//     throw error;
-//   }
-
-//   return fullResponse; // Return the full, concatenated response
-// }
-
-// Endpoint to add a message to a specific chat
-// router.post("/:chatId", async (req, res) => {
-//   const { chatId } = req.params;
-//   const { content } = req.body; // User's message
-
-//   try {
-//     const chat = await Chat.findById(chatId);
-//     if (!chat) {
-//       return res.status(404).send("Chat not found");
-//     }
-
-//     // Add the user's message to the chat
-//     chat.messages.push({ sender: "user", content });
-
-//     // Collect the full AI response
-//     const aiResponse = await streamAIResponse(content);
-
-//     // Now, save the full AI response to the chat
-//     if (aiResponse) {
-//       chat.messages.push({ sender: "assistant", content: aiResponse });
-//       chat.updatedAt = new Date();
-//     }
-
-//     await chat.save();
-
-//     // Confirm completion to the client
-//     res.json({ message: "Chat updated successfully with AI response." });
-//   } catch (error) {
-//     console.error("Failed to process chat message:", error);
-//     if (!res.headersSent) {
-//       res
-//         .status(500)
-//         .json({ message: "Failed to process message", error: error.message });
-//     }
-//   }
-// });
 
 router.post("/:chatId", async (req, res) => {
   const { chatId } = req.params;

@@ -12,6 +12,7 @@ const chatSchema = new mongoose.Schema({
     type: Date,
     default: Date.now,
   },
+  summary: String,
   updatedAt: {
     type: Date,
     default: Date.now,
