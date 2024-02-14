@@ -12,7 +12,11 @@ const chatSchema = new mongoose.Schema({
     type: Date,
     default: Date.now,
   },
-  summary: {
+  newestSummary: {
+    type: String,
+    default: "", // Start with an empty summary
+  },
+  fullSummary: {
     type: String,
     default: "", // Start with an empty summary
   },

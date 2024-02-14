@@ -16,11 +16,24 @@ async function fetchLastSixMessages(chatId) {
     console.log("Chat not found");
     return [];
   }
-  // Assuming 'messages' is an array of message objects and you want the last 6 messages
-  const lastSixMessages = chat.messages.slice(-6).map((msg) => ({
-    sender: msg.sender,
-    content: msg.content,
-  }));
+
+  // Fetch the last 6 messages and trim the assistant's messages to 1000 characters
+  const lastSixMessages = chat.messages.slice(-6).map((msg) => {
+    // For the user, return the message as is
+    if (msg.sender === "user") {
+      return {
+        sender: msg.sender,
+        content: msg.content,
+      };
+    }
+    // For the assistant, trim the message content to the first 1000 characters
+    else if (msg.sender === "assistant") {
+      return {
+        sender: msg.sender,
+        content: msg.content.slice(0, 1000), // Trim to 1000 characters
+      };
+    }
+  });
 
   return lastSixMessages;
 }
@@ -99,6 +112,70 @@ async function* streamAIResponse(content, systemMessage) {
     throw error;
   }
 }
+
+router.post("/:chatId", async (req, res) => {
+  const { chatId } = req.params;
+  const { content: userInput } = req.body;
+
+  try {
+    const chat = await Chat.findById(chatId);
+    if (!chat) {
+      return res.status(404).send("Chat not found");
+    }
+
+    // Add user message
+    chat.messages.push({ sender: "user", content: userInput });
+
+    // Fetch the last six messages for the newest summary
+    const lastSixMessages = await fetchLastSixMessages(chatId);
+    const conversationTextForNewest = lastSixMessages
+      .map(
+        (msg) =>
+          `${msg.sender === "user" ? "User: " : "Assistant: "}${msg.content}`
+      )
+      .join("\n");
+
+    // Generate the newest summary
+    let newestSummary = "";
+    for await (const chunk of generateSummary(chatId)) {
+      // Adjust to ensure correct implementation
+      newestSummary += chunk; // Concatenate summary content
+    }
+
+    // Update newestSummary and append it to fullSummary
+    chat.newestSummary = newestSummary;
+    chat.fullSummary = chat.fullSummary
+      ? chat.fullSummary + "\n\n" + newestSummary
+      : newestSummary;
+
+    // Save the updated chat document
+    await chat.save();
+
+    // Generate AI response using the newest summary as context
+    let fullAIResponse = "";
+    for await (const chunk of streamAIResponse(userInput, newestSummary)) {
+      // Adjust this call to use the correct context
+      fullAIResponse += chunk; // Concatenate the chunk to form the full AI response
+    }
+
+    // Add the AI response to the chat
+    chat.messages.push({ sender: "assistant", content: fullAIResponse });
+    await chat.save();
+
+    res.json({
+      message: "Chat updated successfully with user and AI messages.",
+      newestSummary: newestSummary,
+      fullAIResponse,
+    });
+  } catch (error) {
+    console.error("Failed to process chat message:", error);
+    res
+      .status(500)
+      .json({ message: "Failed to process message", error: error.toString() });
+  }
+});
+
+export default router;
 
 // original route
 // router.post("/:chatId", async (req, res) => {
@@ -191,65 +268,3 @@ async function* streamAIResponse(content, systemMessage) {
 //       .json({ message: "Failed to process message", error: error.toString() });
 //   }
 // });
-
-router.post("/:chatId", async (req, res) => {
-  const { chatId } = req.params;
-  const { content: userInput } = req.body;
-
-  try {
-    const chat = await Chat.findById(chatId);
-    if (!chat) {
-      return res.status(404).send("Chat not found");
-    }
-
-    // Add user message
-    chat.messages.push({
-      sender: "user",
-      content: userInput,
-    });
-
-    let systemMessage = chat.summary || "You are a helpful assistant.";
-
-    // Check if it's time to update the summary (every 3 messages)
-    let summaryText = "";
-    if (chat.messages.length % 3 === 0) {
-      for await (const chunk of generateSummary(chatId)) {
-        summaryText += chunk;
-      }
-      chat.summary = summaryText; // Ensure this is a string
-    }
-
-    // Initialize a variable to collect the full AI response
-    let fullAIResponse = "";
-
-    // Collect chunks from the AI response using the summary as context
-    for await (const chunk of streamAIResponse(userInput, systemMessage)) {
-      fullAIResponse += chunk; // Concatenate the chunk to form the full response
-      console.log(chunk);
-    }
-
-    // Add the AI response to the chat
-    if (fullAIResponse) {
-      chat.messages.push({
-        sender: "assistant",
-        content: fullAIResponse,
-      });
-    }
-    console.log(typeof chat.summary, chat.summary);
-
-    // Save the updated chat document
-    await chat.save();
-
-    res.json({
-      message: "Chat updated successfully with user and AI messages.",
-      fullAIResponse,
-    });
-  } catch (error) {
-    console.error("Failed to process chat message:", error);
-    res
-      .status(500)
-      .json({ message: "Failed to process message", error: error.toString() });
-  }
-});
-
-export default router;
