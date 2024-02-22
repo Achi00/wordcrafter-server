@@ -58,7 +58,7 @@ async function* analyzeHtml(text) {
             "Summarize the analysis, emphasizing the depth of information covered and inquire if the user needs further detailed information on any specific section or topic.",
         },
       ],
-      max_tokens: 4096,
+      max_tokens: 100,
       temperature: 0.4,
       frequency_penalty: 0.6,
       presence_penalty: 0.2,

@@ -7,6 +7,7 @@ const userSchema = new mongoose.Schema({
   picture: { type: String },
   createdAt: { type: Date, default: Date.now },
   chats: [{ type: mongoose.Schema.Types.ObjectId, ref: "Chat" }],
+  plan: { type: String, required: true, default: "free" },
 });
 
 export default mongoose.model("user", userSchema);

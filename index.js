@@ -19,6 +19,7 @@ import connectDB from "./db/Database.js";
 // chat AI assistants
 import codeChatRouter from "./routes/chat/code/CodeChat.js";
 import codeMessagesRouter from "./routes/chat/code/CodeMessages.js";
+import GetCodeMessagesRouter from "./routes/chat/code/GetCodeMessages.js";
 
 const app = express();
 app.use(
@@ -75,6 +76,7 @@ app.get("/auth/status", (req, res) => {
 // chat AI assistants
 app.use("/v1/codechat", codeChatRouter);
 app.use("/v1/codemessages", codeMessagesRouter);
+app.use("/v1/getcodemessages", GetCodeMessagesRouter);
 // writing AI assistants
 app.use("/v1/startwithai", StartWithAIRoute);
 app.use("/v1/expandwithai", ExpandWithAIRoute);

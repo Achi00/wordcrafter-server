@@ -8,6 +8,10 @@ const router = express.Router();
 router.post("/", async (req, res) => {
   const { userId } = req.body; // Assuming the frontend sends the ID of the user who initiates the chat
 
+  if (!userId) {
+    return res.status(404).send("no userId provided");
+  }
+
   try {
     // Verify if the user exists
     const userExists = await User.findById(userId);
