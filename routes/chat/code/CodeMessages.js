@@ -125,87 +125,85 @@ router.post("/:chatId", async (req, res) => {
 
     // Add user message
     chat.messages.push({ sender: "user", content: userInput });
+    await chat.save();
 
-    // Fetch the last six messages for the newest summary
-    const lastSixMessages = await fetchLastSixMessages(chatId);
-    const conversationTextForNewest = lastSixMessages
-      .map(
-        (msg) =>
-          `${msg.sender === "user" ? "User: " : "Assistant: "}${msg.content}`
-      )
-      .join("\n");
-
-    // Generate the newest summary
+    // Calculate the newest summary here
     let newestSummary = "";
-    for await (const chunk of generateSummary(chatId)) {
-      // Adjust to ensure correct implementation
-      newestSummary += chunk; // Concatenate summary content
+    try {
+      for await (const summaryChunk of generateSummary(chatId)) {
+        newestSummary += summaryChunk;
+      }
+    } catch (error) {
+      console.error("Error while generating summary:", error);
+      // Handle summary generation error, perhaps by setting a default summary
+      newestSummary = "Error generating summary.";
     }
 
-    // Update newestSummary and append it to fullSummary
     chat.newestSummary = newestSummary;
-    chat.fullSummary = chat.fullSummary
-      ? chat.fullSummary + "\n\n" + newestSummary
-      : newestSummary;
-
-    // Save the updated chat document
     await chat.save();
 
-    // Generate AI response using the newest summary as context
+    // Immediately write the header to start the response
+    res.writeHead(200, {
+      "Content-Type": "application/json",
+      "Transfer-Encoding": "chunked",
+    });
+
+    // Respond with the user's message immediately
+    res.write(
+      JSON.stringify({ type: "userMessage", content: userInput }) + "\n"
+    );
+
+    // Stream AI response chunks
     let fullAIResponse = "";
-    for await (const chunk of streamAIResponse(userInput, newestSummary)) {
-      // Adjust this call to use the correct context
-      fullAIResponse += chunk; // Concatenate the chunk to form the full AI response
+    try {
+      for await (const aiChunk of streamAIResponse(userInput, newestSummary)) {
+        if (typeof aiChunk === "string" && aiChunk.trim() !== "undefined") {
+          fullAIResponse += aiChunk; // Concatenate for saving to DB later
+          console.log("Streaming AI response chunk:", aiChunk);
+          res.write(
+            JSON.stringify({ type: "aiResponse", content: aiChunk.trim() }) +
+              "\n"
+          );
+        }
+      }
+    } catch (error) {
+      console.error("Error while streaming AI response:", error);
+      // Notify the client of the error without appending it to fullAIResponse
+      res.write(
+        JSON.stringify({
+          type: "error",
+          content: "Error generating AI response.",
+        }) + "\n"
+      );
     }
 
-    // Add the AI response to the chat
-    chat.messages.push({ sender: "assistant", content: fullAIResponse });
+    // After streaming, save the AI response
+    if (fullAIResponse.trim()) {
+      // Append AI response to the chat document
+      chat.messages.push({
+        sender: "assistant",
+        content: fullAIResponse.trim(),
+      });
+      await chat.save();
+      console.log("AI response saved to database");
+    }
+
+    // Optionally adjust how you handle chat.fullSummary based on your requirements
+    chat.fullSummary = (chat.fullSummary || "") + "\n" + fullAIResponse.trim();
     await chat.save();
 
-    res.json({
-      message: "Chat updated successfully with user and AI messages.",
-      newestSummary: newestSummary,
-      fullAIResponse,
-    });
+    res.end();
   } catch (error) {
     console.error("Failed to process chat message:", error);
-    res
-      .status(500)
-      .json({ message: "Failed to process message", error: error.toString() });
+    res.end(
+      JSON.stringify({
+        error: "Failed to process message",
+        details: error.toString(),
+      })
+    );
   }
 });
 
-export default router;
-
-// original route
-// router.post("/:chatId", async (req, res) => {
-//   const { chatId } = req.params;
-
-//   try {
-//     let summary = ""; // Initialize summary variable here
-
-//     // Assuming generateSummary yields chunks of the summary text
-//     for await (const chunk of generateSummary(chatId)) {
-//       summary += chunk; // Accumulate summary content
-//     }
-
-//     // Update the chat document with the new summary
-//     await Chat.findByIdAndUpdate(chatId, { $set: { summary: summary } });
-
-//     res.json({
-//       message: "Summary generated and saved successfully.",
-//       summary: summary,
-//     });
-//   } catch (error) {
-//     console.error("Error during summary generation and saving:", error);
-//     res.status(500).json({
-//       message: "Error generating or saving summary",
-//       error: error.toString(),
-//     });
-//   }
-// });
-
-// summary test route
 // router.post("/:chatId", async (req, res) => {
 //   const { chatId } = req.params;
 //   const { content: userInput } = req.body;
@@ -217,49 +215,48 @@ export default router;
 //     }
 
 //     // Add user message
-//     chat.messages.push({
-//       sender: "user",
-//       content: userInput,
-//     });
+//     chat.messages.push({ sender: "user", content: userInput });
 
-//     // Check if it's time to update the summary (every 3 messages)
-//     if (chat.messages.length % 3 === 0) {
-//       // Generate a new summary
-//       const newSummary = await generateSummary(chatId);
-//       // Update the summary in the chat document
-//       chat.summary = newSummary;
+//     // Fetch the last six messages for the newest summary
+//     const lastSixMessages = await fetchLastSixMessages(chatId);
+//     const conversationTextForNewest = lastSixMessages
+//       .map(
+//         (msg) =>
+//           `${msg.sender === "user" ? "User: " : "Assistant: "}${msg.content}`
+//       )
+//       .join("\n");
+
+//     // Generate the newest summary
+//     let newestSummary = "";
+//     for await (const chunk of generateSummary(chatId)) {
+//       // Adjust to ensure correct implementation
+//       newestSummary += chunk; // Concatenate summary content
 //     }
 
-//     // Initialize a variable to collect the full AI response
+//     // Update newestSummary and append it to fullSummary
+//     chat.newestSummary = newestSummary;
+//     chat.fullSummary = chat.fullSummary
+//       ? chat.fullSummary + "\n\n" + newestSummary
+//       : newestSummary;
+
+//     // Save the updated chat document
+//     await chat.save();
+
+//     // Generate AI response using the newest summary as context
 //     let fullAIResponse = "";
-
-//     // Collect chunks
-//     try {
-//       for await (const chunk of streamAIResponse(userInput)) {
-//         console.log("Received chunk:", chunk); // Log the chunk for monitoring
-//         fullAIResponse += chunk; // Concatenate the chunk to the full response
-//       }
-//     } catch (error) {
-//       console.error("Error streaming AI response:", error);
-//       return res.status(500).json({
-//         message: "Error processing AI response",
-//         error: error.toString(),
-//       });
+//     for await (const chunk of streamAIResponse(userInput, newestSummary)) {
+//       // Adjust this call to use the correct context
+//       fullAIResponse += chunk; // Concatenate the chunk to form the full AI response
 //     }
 
-//     // Once all chunks are collected, save the full response
-//     if (fullAIResponse) {
-//       chat.messages.push({
-//         sender: "assistant",
-//         content: fullAIResponse,
-//       });
-//     }
-
-//     // Save the chat document after processing all chunks
+//     // Add the AI response to the chat
+//     chat.messages.push({ sender: "assistant", content: fullAIResponse });
 //     await chat.save();
 
 //     res.json({
 //       message: "Chat updated successfully with user and AI messages.",
+//       newestSummary: newestSummary,
+//       fullAIResponse,
 //     });
 //   } catch (error) {
 //     console.error("Failed to process chat message:", error);
@@ -268,3 +265,5 @@ export default router;
 //       .json({ message: "Failed to process message", error: error.toString() });
 //   }
 // });
+
+export default router;
